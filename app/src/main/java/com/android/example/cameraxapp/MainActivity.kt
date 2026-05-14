@@ -40,11 +40,12 @@ class MainActivity : AppCompatActivity() {
     private lateinit var viewBinding: ActivityMainBinding
 
     private var imageCapture: ImageCapture? = null
-
     private var videoCapture: VideoCapture<Recorder>? = null
     private var recording: Recording? = null
-
     private lateinit var cameraExecutor: ExecutorService
+
+    // ← NUEVO: guarda qué cámara está activa
+    private var cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -61,6 +62,16 @@ class MainActivity : AppCompatActivity() {
 
         viewBinding.imageCaptureButton.setOnClickListener { takePhoto() }
         viewBinding.videoCaptureButton.setOnClickListener { captureVideo() }
+
+        // ← NUEVO: listener del botón para cambiar cámara
+        viewBinding.cameraSwitchButton.setOnClickListener {
+            cameraSelector = if (cameraSelector == CameraSelector.DEFAULT_BACK_CAMERA) {
+                CameraSelector.DEFAULT_FRONT_CAMERA
+            } else {
+                CameraSelector.DEFAULT_BACK_CAMERA
+            }
+            startCamera() // reinicia con la nueva cámara
+        }
 
         cameraExecutor = Executors.newSingleThreadExecutor()
     }
@@ -191,17 +202,14 @@ class MainActivity : AppCompatActivity() {
         cameraProviderFuture.addListener({
             val cameraProvider: ProcessCameraProvider = cameraProviderFuture.get()
 
-            // Preview (Paso 3)
             val preview = Preview.Builder()
                 .build()
                 .also {
                     it.setSurfaceProvider(viewBinding.viewFinder.surfaceProvider)
                 }
 
-            // ImageCapture (Paso 4)
             imageCapture = ImageCapture.Builder().build()
 
-            // ImageAnalysis (Paso 5)
             val imageAnalyzer = ImageAnalysis.Builder()
                 .build()
                 .also {
@@ -210,17 +218,17 @@ class MainActivity : AppCompatActivity() {
                     })
                 }
 
-            // VideoCapture (Paso 6)
             val recorder = Recorder.Builder()
                 .setQualitySelector(
-                    QualitySelector.from(Quality.HIGHEST,
-                        FallbackStrategy.higherQualityOrLowerThan(Quality.SD))
+                    QualitySelector.from(
+                        Quality.HIGHEST,
+                        FallbackStrategy.higherQualityOrLowerThan(Quality.SD)
+                    )
                 )
                 .build()
             videoCapture = VideoCapture.withOutput(recorder)
 
-            val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
-
+            // ← MODIFICADO: usa la variable en lugar del valor fijo
             try {
                 cameraProvider.unbindAll()
                 cameraProvider.bindToLifecycle(
